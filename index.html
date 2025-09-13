@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>連線遊戲：四子連線（Connect Four）</title>
+  <style>
+    :root{
+      --bg:#0b1020;--panel:#121a2e;--ink:#e6eefc;--muted:#9fb0d3;--p1:#ff6b6b;--p2:#4da3ff;--win:#7cf5c6;--warn:#f59e0b;
+      --radius:18px;--shadow:0 12px 30px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",Arial,"PingFang TC","Microsoft JhengHei",sans-serif;
+      color:var(--ink);background:radial-gradient(1200px 600px at 20% -10%,#0e1530,transparent),linear-gradient(180deg,#0b1020,#0e1630 60%,#0b1020);
+      display:flex;flex-direction:column;align-items:center;gap:12px;user-select:none;-webkit-user-select:none;
+    }
+    header{width:min(1100px,95vw);display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;flex-wrap:wrap}
+    .title{display:flex;align-items:center;gap:12px}
+    .dot{width:14px;height:14px;border-radius:50%}
+    .p1{background:var(--p1)}.p2{background:var(--p2)}
+    h1{font-size:clamp(18px,2.8vw,26px);margin:0;font-weight:700;letter-spacing:.5px}
+    .controls{display:flex;flex-wrap:wrap;gap:8px}
+    button{background:#1b2745;border:1px solid #24345f;color:var(--ink);padding:8px 12px;border-radius:12px;cursor:pointer;box-shadow:var(--shadow);
+      transition:transform .06s ease, background .2s ease,opacity .2s}
+    button:hover{transform:translateY(-1px)}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .tag{padding:6px 10px;border-radius:999px;background:#152040;border:1px solid #24345f;color:var(--muted);font-size:12px}
+
+    .wrap{width:min(1100px,95vw);display:grid;grid-template-columns:1fr 360px;gap:14px}
+    @media (max-width:900px){.wrap{grid-template-columns:1fr}}
+
+    .board{
+      aspect-ratio:7/6; width:100%; background:linear-gradient(180deg,#152040,#0d152b);
+      border-radius:var(--radius); box-shadow:var(--shadow); position:relative; padding:10px;
+      display:grid; grid-template-columns:repeat(7,1fr); gap:10px; touch-action:manipulation;
+    }
+    .col{position:relative; display:grid; grid-template-rows:repeat(6,1fr); gap:10px; cursor:pointer}
+    .cell{background:#0a1330;border:2px solid #1b2b58;border-radius:50%; position:relative; overflow:hidden}
+    .disc{position:absolute; inset:6%; border-radius:50%; box-shadow:inset 0 4px 12px rgba(255,255,255,.15), 0 6px 14px rgba(0,0,0,.4);
+          transform:translateY(-140%); transition:transform .22s ease-out}
+    .disc.p1{background:radial-gradient(circle at 35% 30%, #ff9e9e, #ff6b6b 60%, #b73e3e)}
+    .disc.p2{background:radial-gradient(circle at 35% 30%, #a7d3ff, #4da3ff 60%, #2b62a3)}
+    .disc.in{transform:translateY(0)}
+    .hint{position:absolute;inset-inline:10px 10px;top:6px;display:grid;grid-template-columns:repeat(7,1fr);gap:10px;pointer-events:none}
+    .hint-dot{height:6px;border-radius:999px;background:#2a3a70;opacity:.6}
+    .hint-dot.active{background:var(--warn);opacity:.9}
+
+    .side{background:#111832;border:1px solid #22305a;border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;display:flex;flex-direction:column;gap:12px}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .turn{display:flex;align-items:center;gap:10px}
+    .turn .dot{width:16px;height:16px}
+
+    .score{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .card{background:#0e1530;border:1px solid #22305a;border-radius:14px;padding:12px;text-align:center}
+    .card h3{margin:0 0 6px 0;font-size:14px;color:var(--muted)}
+    .big{font-size:22px;font-weight:800}
+
+    .log{height:160px;overflow:auto;background:#0e1530;border:1px solid #22305a;border-radius:14px;padding:10px;font-size:12px;color:var(--muted)}
+    .log b{color:var(--ink)}
+
+    .winOverlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.0),rgba(0,0,0,.35));border-radius:var(--radius);display:none;align-items:center;justify-content:center;gap:10px}
+    .winOverlay.show{display:flex}
+    .winText{padding:10px 14px;border-radius:12px;background:#0f1a36;border:1px solid #27417a}
+    .line{position:absolute;height:6px;background:var(--win);box-shadow:0 0 10px rgba(124,245,198,.8);border-radius:999px;transform-origin:left center}
+    .legend{font-size:12px;color:var(--muted)}
+
+    /* 線上連線面板 */
+    details.net{width:min(1100px,95vw);background:#0f1733;border:1px solid #233463;border-radius:16px;padding:10px 12px;box-shadow:var(--shadow)}
+    .net-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media (max-width:900px){.net-grid{grid-template-columns:1fr}}
+    textarea{width:100%;min-height:110px;background:#0c142e;color:#dbe7ff;border:1px solid #263a72;border-radius:12px;padding:10px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    .status{display:inline-block;padding:4px 8px;border-radius:999px;border:1px solid #27417a;background:#0e1838;color:#b9cdf8;font-size:12px}
+    .warn{color:#ffd27a}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">
+      <div class="dot p1"></div><div class="dot p2"></div>
+      <h1>四子連線（Connect Four）</h1>
+      <span class="tag">桌機／平板｜本機或線上對戰</span>
+    </div>
+    <div class="controls">
+      <button id="btnUndo" title="悔棋 (Ctrl+Z)">↶ 悔棋</button>
+      <button id="btnReset" title="重設棋局 (R)">⟲ 重設</button>
+      <button id="btnSwap" title="交換先手">⇄ 交換先手</button>
+      <span class="tag legend">先連成 4 顆直線者獲勝</span>
+    </div>
+  </header>
+
+  <details class="net" open>
+    <summary><b>線上連線（無伺服器 WebRTC／手動貼上代碼）</b>　狀態：<span id="netState" class="status">離線</span></summary>
+    <div class="legend warn" id="secureWarn" style="display:none;margin-top:6px">⚠ 必須在 <b>HTTPS</b> 或 <b>localhost</b> 執行，否則無法建立連線。</div>
+    <div class="net-grid" style="margin-top:10px">
+      <div>
+        <h3 style="margin:6px 0">① 主機建立連線（你 = 玩家一／紅）</h3>
+        <div class="legend">步驟：按「建立邀請」 → 把 <b>邀請碼</b> 傳給對手 → 最後貼上對方的 <b>回覆碼</b> 並按「套用回覆」。</div>
+        <div style="display:flex; gap:8px; margin:8px 0"><button id="hostMake">建立邀請</button><button id="hostCopy">複製邀請碼</button></div>
+        <textarea id="hostOffer" placeholder="邀請碼會出現在這裡（複製給對方）"></textarea>
+        <div style="display:flex; gap:8px; margin:8px 0"><button id="hostApply">套用回覆</button></div>
+        <textarea id="hostAnswerIn" placeholder="把對方給你的回覆碼貼在這裡，然後按『套用回覆』"></textarea>
+      </div>
+      <div>
+        <h3 style="margin:6px 0">② 客人加入對局（你 = 玩家二／藍）</h3>
+        <div class="legend">步驟：把主機的 <b>邀請碼</b> 貼上 → 按「建立回覆」 → 把產生的 <b>回覆碼</b> 傳回主機。</div>
+        <div style="display:flex; gap:8px; margin:8px 0"><button id="guestBuild">建立回覆</button></div>
+        <textarea id="guestOfferIn" placeholder="貼上主機的邀請碼"></textarea>
+        <div style="display:flex; gap:8px; margin:8px 0"><button id="guestCopy">複製回覆碼</button></div>
+        <textarea id="guestAnswerOut" placeholder="這裡會產生回覆碼（複製給主機）"></textarea>
+      </div>
+    </div>
+    <div class="legend" style="margin-top:6px">＊這是 P2P 連線：資料只在兩位玩家之間傳送。此模式使用公開 STUN 伺服器（無需自架信令伺服器）。</div>
+  </details>
+
+  <div class="wrap">
+    <div class="board" id="board" aria-label="四子棋盤">
+      <div class="hint" id="hint"></div>
+      <div class="winOverlay" id="winOverlay">
+        <div class="winText" id="winText">—</div>
+        <div class="line" id="winLine" hidden></div>
+      </div>
+    </div>
+
+    <aside class="side">
+      <div class="row">
+        <div class="turn">
+          <div class="dot" id="turnDot"></div>
+          <div>
+            <div style="font-weight:700">目前輪到：<span id="turnText">—</span></div>
+            <div class="legend">紅色 = 玩家一、藍色 = 玩家二</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="score">
+        <div class="card"><h3>玩家一（紅）</h3><div class="big" id="s1">0</div></div>
+        <div class="card"><h3>玩家二（藍）</h3><div class="big" id="s2">0</div></div>
+      </div>
+
+      <div class="row" style="gap:6px">
+        <button id="btnNewMatch">➕ 開新對局（保留戰績）</button>
+        <button id="btnClearScore">🗑 清空戰績</button>
+      </div>
+
+      <div class="card">
+        <h3>操作提示</h3>
+        <div class="legend">
+          • 點擊上方任一欄位即可落子。<br>
+          • 悔棋：按鈕或 Ctrl+Z。重設：R。<br>
+          • 線上模式：主機（紅）先手，客人（藍）後手；只能在輪到你時操作。<br>
+          • 若連線失敗：重新建立邀請／回覆即可。
+        </div>
+      </div>
+
+      <div class="log" id="log" aria-label="對局紀錄"></div>
+    </aside>
+  </div>
+
+  <script>
+  ;(()=>{
+    const COLS = 7, ROWS = 6;
+    const boardEl = document.getElementById('board');
+    const hintEl = document.getElementById('hint');
+    const winOverlay = document.getElementById('winOverlay');
+    const winText = document.getElementById('winText');
+    const winLine = document.getElementById('winLine');
+    const turnDot = document.getElementById('turnDot');
+    const turnText = document.getElementById('turnText');
+    const s1El = document.getElementById('s1');
+    const s2El = document.getElementById('s2');
+    const logEl = document.getElementById('log');
+
+    const btnUndo = document.getElementById('btnUndo');
+    const btnReset = document.getElementById('btnReset');
+    const btnSwap = document.getElementById('btnSwap');
+    const btnNewMatch = document.getElementById('btnNewMatch');
+    const btnClearScore = document.getElementById('btnClearScore');
+
+    const netState = document.getElementById('netState');
+    const secureWarn = document.getElementById('secureWarn');
+    const hostMake = document.getElementById('hostMake');
+    const hostCopy = document.getElementById('hostCopy');
+    const hostApply = document.getElementById('hostApply');
+    const hostOffer = document.getElementById('hostOffer');
+    const hostAnswerIn = document.getElementById('hostAnswerIn');
+
+    const guestBuild = document.getElementById('guestBuild');
+    const guestCopy = document.getElementById('guestCopy');
+    const guestOfferIn = document.getElementById('guestOfferIn');
+    const guestAnswerOut = document.getElementById('guestAnswerOut');
+
+    // 狀態
+    let grid, turn, moves, locked, firstPlayer = 1; // 1 紅、2 藍
+    let score = JSON.parse(localStorage.getItem('c4_score')||'{"p1":0,"p2":0}');
+    updateScore();
+
+    // 線上狀態
+    let isOnline = false;
+    let mySide = 0; // 1=紅(host), 2=藍(guest)
+    let role = null; // 'host' | 'guest' | null
+    let pc = null, dc = null;
+
+    function setNetState(txt){ netState.textContent = txt; }
+
+    // 安全性檢查
+    const isSecure = (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+    if(!isSecure){
+      secureWarn.style.display = 'block';
+    }
+
+    function disableNet(disabled){
+      [hostMake,hostCopy,hostApply,guestBuild,guestCopy].forEach(b=>{ if(b) b.disabled = disabled; });
+    }
+
+    // 初始化盤面
+    function buildBoard(){
+      boardEl.innerHTML = '';
+      boardEl.appendChild(hintEl);
+      boardEl.appendChild(winOverlay);
+      hintEl.innerHTML = '';
+      for(let c=0;c<COLS;c++){
+        const col = document.createElement('div');
+        col.className = 'col';
+        col.dataset.c = c;
+        col.setAttribute('role','button');
+        col.setAttribute('aria-label',`第 ${c+1} 欄`);
+        col.addEventListener('click',()=>handleDrop(c));
+        col.addEventListener('touchstart', (e)=>{ e.preventDefault(); handleDrop(c); }, {passive:false});
+        for(let r=0;r<ROWS;r++){
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.c = c; cell.dataset.r = r;
+          const disc = document.createElement('div'); disc.className = 'disc';
+          cell.appendChild(disc);
+          col.appendChild(cell);
+        }
+        boardEl.appendChild(col);
+        const h = document.createElement('div'); h.className='hint-dot'; hintEl.appendChild(h);
+      }
+    }
+
+    function newGame(keepFirst=true){
+      grid = Array.from({length:ROWS},()=>Array(COLS).fill(0));
+      moves = []; locked = false; winOverlay.classList.remove('show');
+      winLine.hidden = true; winLine.style.transform=''; winLine.style.width='';
+      if(!keepFirst) firstPlayer = firstPlayer===1?2:1;
+      turn = firstPlayer; updateTurnUI();
+      document.querySelectorAll('.disc').forEach(d=>{ d.classList.remove('in','p1','p2'); d.style.transform=''; });
+      log(`— 開始新局（先手：${turn===1?'玩家一':'玩家二'}）`);
+    }
+
+    function updateTurnUI(){
+      turnText.textContent = turn===1? '玩家一（紅）':'玩家二（藍）';
+      turnDot.className = 'dot ' + (turn===1? 'p1':'p2');
+      const actives = Array(COLS).fill(false);
+      for(let c=0;c<COLS;c++) if(grid[0][c]===0) actives[c]=true;
+      [...hintEl.children].forEach((el,i)=>{ el.classList.toggle('active', actives[i]); });
+    }
+
+    function log(msg){
+      const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+      logEl.innerHTML = `<div><b>[${time}]</b> ${msg}</div>` + logEl.innerHTML;
+      console.log('[C4]', msg);
+    }
+
+    function handleDrop(c){
+      if(locked) return;
+      if(isOnline){
+        if(mySide===0){ pulseColumn(c); return; }
+        if(turn!==mySide){ pulseColumn(c); return; }
+      }
+      let row = -1;
+      for(let r=ROWS-1;r>=0;r--){ if(grid[r][c]===0){ row=r; break; } }
+      if(row===-1){ pulseColumn(c); return; }
+      placeDisc(row,c,turn,true);
+      const win = checkWinFrom(row,c);
+      if(win){ endGame(win); sync({t:'end', win}); return; }
+      if(isDraw()){ endDraw(); sync({t:'draw'}); return; }
+      turn = 3 - turn; updateTurnUI();
+      sync({t:'move', c});
+    }
+
+    function pulseColumn(c){
+      const hint = hintEl.children[c];
+      if(hint){ hint.classList.add('active'); setTimeout(()=>hint.classList.remove('active'), 250); }
+      play('deny');
+    }
+
+    function placeDisc(r,c,who,record){
+      grid[r][c] = who;
+      const cell = getCell(r,c);
+      const disc = cell.querySelector('.disc');
+      disc.classList.add(who===1?'p1':'p2');
+      requestAnimationFrame(()=>{ disc.classList.add('in'); });
+      if(record){ moves.push({r,c,who}); }
+      play('drop');
+    }
+
+    function getCell(r,c){
+      return boardEl.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`);
+    }
+
+    function checkWinFrom(r,c){
+      const who = grid[r][c];
+      if(!who) return null;
+      const DIRS = [ [0,1], [1,0], [1,1], [1,-1] ];
+      for(const [dr,dc] of DIRS){
+        let count = 1, cells=[[r,c]];
+        let rr=r+dr, cc=c+dc;
+        while(rr>=0 && rr<ROWS && cc>=0 && cc<COLS && grid[rr][cc]===who){ cells.push([rr,cc]); count++; rr+=dr; cc+=dc; }
+        rr=r-dr; cc=c-dc;
+        while(rr>=0 && rr<ROWS && cc>=0 && cc<COLS && grid[rr][cc]===who){ cells.unshift([rr,cc]); count++; rr-=dr; cc-=dc; }
+        if(count>=4){ return {who, cells: cells.slice(0,4), dir:[dr,dc]}; }
+      }
+      return null;
+    }
+
+    function isDraw(){ return grid[0].every(v=>v!==0); }
+
+    function endGame(win){
+      locked = true;
+      const name = win.who===1? '玩家一（紅）':'玩家二（藍）';
+      winText.textContent = `✔ ${name} 獲勝！`;
+      winOverlay.classList.add('show');
+      drawWinLine(win.cells);
+      win.cells.forEach(([r,c])=>{
+        const disc = getCell(r,c).querySelector('.disc');
+        disc.style.boxShadow = '0 0 16px rgba(124,245,198,.9), inset 0 4px 12px rgba(255,255,255,.2)';
+      });
+      if(win.who===1) score.p1++; else score.p2++;
+      localStorage.setItem('c4_score', JSON.stringify(score));
+      updateScore();
+      log(`${name} 連成四子，贏得本局！`);
+      play('win');
+    }
+
+    function endDraw(){
+      locked = true;
+      winText.textContent = '＝ 和局';
+      winOverlay.classList.add('show');
+      log('棋盤已滿，和局。');
+      play('draw');
+    }
+
+    function drawWinLine(cells){
+      if(cells.length<2) return;
+      const [r1,c1] = cells[0];
+      const [r2,c2] = cells[cells.length-1];
+      const a = getCellCenter(r1,c1);
+      const b = getCellCenter(r2,c2);
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const len = Math.hypot(dx,dy);
+      const ang = Math.atan2(dy,dx);
+      winLine.hidden = false;
+      winLine.style.left = a.x + 'px';
+      winLine.style.top = a.y + 'px';
+      winLine.style.width = len + 'px';
+      winLine.style.transform = `rotate(${ang}rad)`;
+    }
+
+    function getCellCenter(r,c){
+      const cell = getCell(r,c);
+      const rect = cell.getBoundingClientRect();
+      const parent = boardEl.getBoundingClientRect();
+      return { x: rect.left - parent.left + rect.width/2, y: rect.top - parent.top + rect.height/2 };
+    }
+
+    function updateScore(){ s1El.textContent = score.p1; s2El.textContent = score.p2; }
+
+    function undo(){
+      if(locked || moves.length===0) return;
+      const last = moves.pop();
+      grid[last.r][last.c]=0;
+      const disc = getCell(last.r,last.c).querySelector('.disc');
+      disc.classList.remove('in','p1','p2');
+      turn = last.who; updateTurnUI();
+      winOverlay.classList.remove('show'); winLine.hidden=true;
+      log('↶ 悔棋');
+      play('undo');
+      sync({t:'undo'});
+    }
+
+    function resetAll(){
+      newGame(false);
+      log('⟲ 重設棋局（並交換先手）');
+      sync({t:'reset'});
+    }
+
+    btnUndo.onclick = ()=>undo();
+    btnReset.onclick = ()=>resetAll();
+    btnSwap.onclick = ()=>{ firstPlayer = firstPlayer===1?2:1; newGame(true); log('⇄ 已交換先手'); sync({t:'swapFirst', first:firstPlayer}); };
+    btnNewMatch.onclick = ()=>{ newGame(true); sync({t:'newMatch'}); };
+    btnClearScore.onclick = ()=>{ score={p1:0,p2:0}; localStorage.setItem('c4_score', JSON.stringify(score)); updateScore(); log('🗑 已清空戰績'); sync({t:'score', score}); };
+
+    window.addEventListener('keydown',e=>{
+      if(e.key==='r' || e.key==='R'){ e.preventDefault(); resetAll(); }
+      if((e.ctrlKey||e.metaKey) && e.key==='z'){ e.preventDefault(); undo(); }
+      const num = parseInt(e.key,10);
+      if(num>=1 && num<=7){ handleDrop(num-1); }
+    });
+
+    // 音效
+    let audioCtx;
+    function ac(){ try{ if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==='suspended') audioCtx.resume(); }catch(_){} }
+    function tone(f=440,t=0.08,type='sine',g=0.2){ if(!audioCtx) return; const o=audioCtx.createOscillator(); const v=audioCtx.createGain(); o.type=type; o.frequency.value=f; v.gain.value=g; o.connect(v); v.connect(audioCtx.destination); o.start(); v.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime+t); o.stop(audioCtx.currentTime+t); }
+    function play(kind){ ac(); if(kind==='drop') tone(420,0.06,'triangle',0.25); else if(kind==='deny') tone(150,0.12,'sawtooth',0.25); else if(kind==='win'){ tone(660,0.08,'sine',0.25); setTimeout(()=>tone(880,0.12,'sine',0.22),100); } else if(kind==='draw'){ tone(330,0.2,'square',0.18); } else if(kind==='undo'){ tone(380,0.07,'triangle',0.18); } }
+
+    // —— WebRTC（手動貼碼）——
+    const rtcConfig = { iceServers:[
+      {urls:'stun:stun.l.google.com:19302'},
+      {urls:'stun:stun1.l.google.com:19302'},
+      {urls:'stun:stun2.l.google.com:19302'},
+      {urls:'stun:stun3.l.google.com:19302'},
+      {urls:'stun:stun4.l.google.com:19302'}
+    ] };
+
+    const enc = (obj)=> btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+    const dec = (txt)=> JSON.parse(decodeURIComponent(escape(atob(txt.trim()))));
+
+    function makePeer(){
+      if(pc) try{ pc.close(); }catch(_){ }
+      pc = new RTCPeerConnection(rtcConfig);
+      pc.oniceconnectionstatechange = ()=>{
+        setNetState(pc.iceConnectionState);
+        if(['disconnected','failed','closed'].includes(pc.iceConnectionState)){
+          isOnline=false; role=null; mySide=0; log('⚠️ 連線中斷：'+pc.iceConnectionState);
+        }
+      };
+      pc.onconnectionstatechange = ()=>{
+        log('RTCPeerConnection state: '+pc.connectionState);
+      };
+      return pc;
+    }
+
+    function waitIceDone(){
+      return new Promise(res=>{
+        if(!pc){ res(); return; }
+        if(pc.iceGatheringState==='complete') return res();
+        const timer = setTimeout(()=>{ log('ICE 蒐集逾時，先送出目前候選'); res(); }, 2500);
+        const onState = ()=>{
+          if(pc.iceGatheringState==='complete'){
+            clearTimeout(timer); pc.removeEventListener('icegatheringstatechange', onState); res();
+          }
+        };
+        pc.addEventListener('icegatheringstatechange', onState);
+      });
+    }
+
+    function setupDC(channel){
+      dc = channel;
+      dc.onopen = ()=>{ isOnline=true; setNetState('已連線'); log('🌐 資料通道已開啟'); };
+      dc.onclose = ()=>{ isOnline=false; setNetState('離線'); log('⚠️ 資料通道關閉'); };
+      dc.onmessage = (ev)=>{ try{ const msg = JSON.parse(ev.data); onNetMsg(msg); }catch(e){ console.warn('Bad msg', e); } };
+    }
+
+    function sync(obj){ if(isOnline && dc && dc.readyState==='open'){ try{ dc.send(JSON.stringify(obj)); }catch(e){ console.warn('send fail', e); } } }
+
+    function onNetMsg(m){
+      if(m.t==='move'){
+        const who = turn; // 現在輪到我 → 收到對手行動 = 對手顏色
+        let row=-1; for(let r=ROWS-1;r>=0;r--){ if(grid[r][m.c]===0){ row=r; break; } }
+        if(row!==-1){ placeDisc(row, m.c, who, true); const win = checkWinFrom(row,m.c); if(win){ endGame(win); } else if(isDraw()){ endDraw(); } else { turn = 3 - turn; updateTurnUI(); } }
+      }
+      else if(m.t==='reset'){ newGame(false); }
+      else if(m.t==='undo'){ undo(); }
+      else if(m.t==='newMatch'){ newGame(true); }
+      else if(m.t==='swapFirst'){ firstPlayer = m.first|| (firstPlayer===1?2:1); newGame(true); }
+      else if(m.t==='score'){ score = m.score; localStorage.setItem('c4_score', JSON.stringify(score)); updateScore(); }
+      else if(m.t==='end'){ /* ignore */ }
+    }
+
+    // 主機：建立邀請
+    hostMake.onclick = async ()=>{
+      if(!isSecure){ alert('請改用 HTTPS 或在 localhost 執行後再試。'); return; }
+      try{
+        role = 'host'; mySide = 1; setNetState('建立邀請中…'); log('開始建立邀請');
+        makePeer();
+        const channel = pc.createDataChannel('c4');
+        setupDC(channel);
+        const offer = await pc.createOffer({offerToReceiveAudio:false, offerToReceiveVideo:false});
+        await pc.setLocalDescription(offer);
+        await waitIceDone();
+        hostOffer.value = enc(pc.localDescription);
+        setNetState('等待回覆碼…'); log('邀請碼已產生，請傳給對手');
+      }catch(e){
+        console.error(e); log('❌ 建立邀請失敗：'+e.message);
+        alert('建立邀請失敗：'+e.message);
+      }
+    };
+    hostCopy.onclick = ()=>{ if(hostOffer.value){ navigator.clipboard.writeText(hostOffer.value); log('已複製邀請碼'); } };
+    hostApply.onclick = async ()=>{
+      try{
+        const answer = dec(hostAnswerIn.value);
+        await pc.setRemoteDescription(answer);
+        setNetState('連線嘗試中…'); log('已套用回覆碼，等待資料通道開啟');
+      }catch(e){ alert('回覆碼格式錯誤：'+e.message); }
+    };
+
+    // 客人：建立回覆
+    guestBuild.onclick = async ()=>{
+      if(!isSecure){ alert('請改用 HTTPS 或在 localhost 執行後再試。'); return; }
+      try{
+        role = 'guest'; mySide = 2; setNetState('建立回覆中…'); log('讀取邀請碼並建立回覆');
+        makePeer();
+        pc.ondatachannel = (e)=> setupDC(e.channel);
+        const offer = dec(guestOfferIn.value);
+        await pc.setRemoteDescription(offer);
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        await waitIceDone();
+        guestAnswerOut.value = enc(pc.localDescription);
+        setNetState('請把回覆碼傳給主機'); log('回覆碼已產生，請傳給主機');
+      }catch(e){ alert('邀請碼格式錯誤或建立回覆失敗：'+e.message); setNetState('離線'); log('❌ 建立回覆失敗：'+e.message); }
+    };
+    guestCopy.onclick = ()=>{ if(guestAnswerOut.value){ navigator.clipboard.writeText(guestAnswerOut.value); log('已複製回覆碼'); } };
+
+    // 啟動
+    buildBoard();
+    newGame(true);
+    document.addEventListener('pointerdown', ac, {once:true});
+
+    if(!('RTCPeerConnection' in window)){
+      setNetState('不支援');
+      disableNet(true);
+      log('此瀏覽器不支援 WebRTC');
+    }
+  })();
+  </script>
+</body>
+</html>
